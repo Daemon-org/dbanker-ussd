@@ -5,6 +5,7 @@ logger = logging.getLogger(__name__)
 
 from base.utils import MomoTransaction
 from base.models import Payments
+
 transaction = MomoTransaction()
 
 
@@ -24,6 +25,6 @@ def validate_pending_transactions():
                 logger.warning(f"transaction {sub.reference_id} returned {verify}")
 
     if subs_to_update:
-        Payments.objects.bulk_update(subs_to_update, ['sub_status'])
+        Payments.objects.bulk_update(subs_to_update, ["sub_status"])
 
     return "Pending subscriptions updated"
