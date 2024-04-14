@@ -3,8 +3,12 @@ import json
 from decouple import config
 import requests
 import logging
-
+from base.models import Profile,Transaction,Statements
+import arrow
+from base.notify import Notify
 logger = logging.getLogger(__name__)
+
+notify = Notify()
 
 
 def fix_email(email):
@@ -138,3 +142,51 @@ class MomoTransaction:
 
         response = requests.post(endpoint, json=payload, headers=headers)
         return response.json()
+    
+    def withdraw_funds(self,amount,phone):
+        user = Profile.objects.get(phone_number=phone)
+        if user:
+            trans = self.transfer_funds(amount,user.phone_number,user.full_name)
+
+            if trans["data"]["status"] == 'success':
+                Transaction.objects.create(
+                    amount=amount,
+                    profile=user,
+                    receipient_number=user.phone_number,
+                    transaction_type="withdraw",
+                    status="completed",
+                )
+            else:
+                return trans["data"]["status"]
+            
+        else:
+            return "failed"
+        
+    def generate_trasaction_statements(self,phone):
+        now = arrow.now()
+        user = Profile.objects.get(phone_number=phone)
+        transactions = Transaction.objects.filter(profile=user,created_at__year=now.year,created_at__month=now.month).order_by('-created_at')
+        statements = []
+
+        for transaction in transactions:
+            statements.append({
+                "amount": transaction.amount,
+                "transaction_type": transaction.transaction_type,
+                "status": transaction.status,
+                "created_at": transaction.created_at
+            })
+        
+        states = Statements.objects.bulk_create([Statements(**statement) for statement in statements])
+        if states:
+           notify.send_sms_or_email("sms",user.phone_number, states)
+           return "success"
+        
+        else:
+            return "failed"
+
+
+    
+       
+
+        
+

@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import make_password, check_password
 from base.templates import registered_users, non_users
-from base.models import UssdLog, UssdScreen, UssdSession, Profile
+from base.models import UssdLog,Transaction, UssdSession, Profile
 from base.utils import MomoTransaction, fix_email
 from base.notify import Notify
 from django.core.cache import cache
@@ -272,13 +272,20 @@ def index(request):
                         return JsonResponse(data, safe=False)
                      
                     total_amount = trans.add_charges(amount)
-
+                   # TODO: pin code input before send
 
                     if s_user.balance >= total_amount:
                         s_user.balance -= total_amount
                         r_user.balance += amount
                         s_user.save(update_fields=["balance"])
                         r_user.save(update_fields=["balance"])
+                        Transaction.objects.create(
+                            profile = s_user,
+                            amount = amount,
+                            transaction_type = "transfer",
+                            receipient_number = r_user.phone_number
+                        )
+
 
                     else:
                         error_template = registered_users["s4"]

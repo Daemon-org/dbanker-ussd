@@ -56,48 +56,12 @@ class UssdSession(models.Model):
     )  # Field name made lowercase.
 
 
-# class UssdRequest(models.Model):
-#     sessionId = models.CharField(max_length=150)
-#     userId = models.CharField(max_length=150)
-#     newSession = models.BooleanField(default=False)
-#     msisdn = models.CharField(max_length=150)
-#     userData = models.TextField(null=True, blank=True)
-#     network = models.CharField(max_length=150)
-
-#     def __str__(self) -> str:
-#         return self.sessionId
-
-
-# class UssdResponse(models.Model):
-#     sessionId = models.CharField(max_length=150, null=True, blank=True)
-#     userId = models.CharField(max_length=150, null=True, blank=True)
-#     continueSession = models.BooleanField(default=False)
-#     msisdn = models.CharField(max_length=150, null=True, blank=True)
-#     message = models.TextField(null=True, blank=True)
-
-#     def __str__(self) -> str:
-#         return self.sessionId
-
-
-# class UssdState(models.Model):
-#     sessionId = models.CharField(max_length=150)
-#     message = models.TextField()
-#     newSession = models.BooleanField(default=False)
-#     msisdn = models.CharField(max_length=150)
-#     userData = models.TextField(null=True, blank=True)
-#     network = models.CharField(max_length=150)
-#     level = models.IntegerField()
-#     part = models.IntegerField()
-#     stage = models.CharField(max_length=100)
-
-#     def __str__(self) -> str:
-#         return self.sessionId
 
 
 class Profile(models.Model):
     uid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=150)
-    phone_number = models.CharField(max_length=150)
+    phone_number = models.CharField(max_length=150,unique=True)
     email = models.CharField(max_length=150)
     pincode = models.CharField(max_length=150)
     balance = models.DecimalField(decimal_places=2, max_digits=10, default=0)
