@@ -243,6 +243,7 @@ def index(request):
                     session_cache = json.loads(cache.get(session_id, "{}"))
                     session_cache["amount"] = amount
                     cache.set(session_id, json.dumps(session_cache))
+
                     data = package(
                         body, template=template["body"], status=template["status"]
                     )
@@ -251,53 +252,118 @@ def index(request):
                     return JsonResponse(data)
 
                 if stage == "s4":
+                    logger.warning("")
                     template = registered_users["s4"]
                     session_cache = json.loads(cache.get(session_id, "{}"))
                     receiver = session_cache.get("receiver", "")
                     amount = Decimal(session_cache.get("amount", ""))
                     s_user = Profile.objects.get(phone_number=phone_number)
                     r_user = Profile.objects.get(phone_number=receiver)
-                    if r_user:
-                        template = template["body"]
-                        template.format(
-                            r_user.full_name,
-                            amount,
-                        )
+                    session_cache["reciever_number"] = r_user.phone_number
+                    cache.set(session_id, json.dumps(session_cache))
+
+                    if response == "1":
+
+                        if r_user:
+                            template = template["body"]
+                            template.format(
+                                r_user.full_name,
+                                amount,
+                            )
+
+                        else:
+                            error_template = registered_users["s4"]
+                            data = package(
+                                body, error_template["error"], status=template["status"]
+                            )
+                            return JsonResponse(data, safe=False)
+                        
+                        total_amount = trans.add_charges(amount)
+
+                        if s_user.balance >= total_amount:
+                            # s_user.balance -= total_amount
+                            # r_user.balance += amount
+                            # s_user.save(update_fields=["balance"])
+                            # r_user.save(update_fields=["balance"])
+                            Transaction.objects.create(
+                                profile = s_user,
+                                amount = amount,
+                                transaction_type = "transfer",
+                                receipient_number = r_user.phone_number,
+                                status = "pending",
+                            )
+
+
+                        else:
+                            error_template = registered_users["s4"]
+                            data = package(
+                                body, error_template["error2"], status=template["status"]
+                            )
+                            return JsonResponse(data, safe=False)
+                        
+                        log.stage = "xp"
+                        log.save(update_fields=["stage"])
+                    
+                        return JsonResponse(data)
 
                     else:
-                        error_template = registered_users["s4"]
+                        template = "Transaction Cancelled"
                         data = package(
-                            body, error_template["error"], status=template["status"]
-                        )
+                                body, template, status=2
+                            )
                         return JsonResponse(data, safe=False)
-                     
-                    total_amount = trans.add_charges(amount)
-                   # TODO: pin code input before send
+                         
+                
+                if stage == "xp":
+                    logger.warning("getting pin code here now")
+                    template = non_users["xp"]
+                    pin_code = response.strip()
+                    session_cache = json.loads(cache.get(session_id, "{}")) 
+                    r_num = session_cache.get("reciever_number")
+                    receiver = Profile.objects.get(phone_number=r_num)
 
-                    if s_user.balance >= total_amount:
-                        s_user.balance -= total_amount
-                        r_user.balance += amount
-                        s_user.save(update_fields=["balance"])
-                        r_user.save(update_fields=["balance"])
-                        Transaction.objects.create(
-                            profile = s_user,
-                            amount = amount,
-                            transaction_type = "transfer",
-                            receipient_number = r_user.phone_number
-                        )
+                    tr = Transaction.objects.filter(profile__phone_number=phone_number,receipient_number=r_num,status="pending")
 
+                    if not tr.exists():
+                        temp = "transaction could not be found"
+                        status = "2"
+                        data = package(body, temp, status=status)
+                        return JsonResponse(data)
 
+                    checker = Profile.objects.values("pincode").get(
+                        phone_number=phone_number
+                    )
+                    checker = check_password(pin_code, checker["pincode"])
+                    tries_left = cache.get(f"tries_left_{phone_number}", default=4)
+
+                    if checker:
+                        log.stage = "xp"
+                        text_template = template["body"]
+                        receiver.balance += tr.amount
+                        tr.profile.balance -= tr.amount
+                        tr.status = "completed"
+                        status = template["status"]
+                        tr.save()
+                        receiver.save(update_fields=["balance"])
+                        log.save()
+                        data = package(body, text_template, status=status)
+                        return JsonResponse(data)
                     else:
-                        error_template = registered_users["s4"]
-                        data = package(
-                            body, error_template["error2"], status=template["status"]
-                        )
-                        return JsonResponse(data, safe=False)
-                
-                    return JsonResponse(data)
-                
-                if stage == "d2":
-                    pass
+                        tries_left -= 1  # Decrement tries_left when PIN verification fails
+
+                        # Update and save the number of tries left in the cache
+                        cache.set(f"tries_left_{phone_number}", tries_left)
+
+                        if tries_left > 0:
+                            text_template = template["error2"].format(tries_left)
+                        else:
+                            text_template = template["error3"]
+                            tr.status = "failed"
+                            tr.save()
+                            cache.delete(f"tries_left_{phone_number}")
+                            status = "1"
+                        data = package(body, text_template, status=status)
+                        return JsonResponse(data)
 
 
 
