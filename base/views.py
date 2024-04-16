@@ -120,6 +120,7 @@ def index(request):
                     cache.set(session_id, json.dumps(session_cache))
                     template = non_users["n4"]
                     log.stage = "n4"
+                    log.save(update_fields=["stage"])
 
                 else:
                     error_template = non_users["n3"]
@@ -252,7 +253,7 @@ def index(request):
                     return JsonResponse(data)
 
                 if stage == "s4":
-                    logger.warning("")
+                    logger.warning("confirm transaction")
                     template = registered_users["s4"]
                     session_cache = json.loads(cache.get(session_id, "{}"))
                     receiver = session_cache.get("receiver", "")
@@ -364,6 +365,116 @@ def index(request):
                             status = "1"
                         data = package(body, text_template, status=status)
                         return JsonResponse(data)
+
+                if stage == "d2":
+                    template = registered_users["d2"]["body"]
+                    session_cache = json.loads(cache.get(session_id, "{}"))
+                    amount = Decimal(response.strip())
+
+                    session_cache["deposit_amount"] = amount
+                    cache.set(session_id, json.dumps(session_cache))
+                    template = registered_users["d3"]
+                    log.stage = "d3"
+                    log.save(update_fields=["stage"])
+                    data = package(body, template["body"], status=template["status"])
+                    return JsonResponse(data)
+
+                """ TODO: Create a celery task that checks for pending transactions
+                      example for this deposit if the transaction check is successful
+                      update the users balance with the amount 
+                """
+                if stage == "d3":
+                    logger.warning("deposit cash")
+                    template = registered_users["d3"]
+                
+                    if response == "1":
+                       session_cache = json.loads(cache.get(session_id, "{}"))
+                       amount = session_cache.get("deposit_amount","")
+                       user = Profile.objects.get(phone_number=phone_number)
+                       if user:
+                        template = template["body"]
+                        template.format(
+                            amount
+                        )
+
+                        prompt = trans.send_mobile_money_prompt(amount,user.email,user.phone_number)
+                        if prompt["data"]["status"] != "failed":
+                            Transaction.objects.create(
+                                profile = user,
+                                amount = amount,
+                                status = "pending",
+                            )
+
+                            log.stage = "d3"
+                            log.save()
+                            temp = "Deposit success"
+                            data = package(body, temp, status="2")
+                                
+                            return JsonResponse(data)
+
+                        else:
+                            log.stage = "r1"
+                            log.save(update_fields=["stage"])
+
+                if stage == "w2":
+                    logger.warning("withdraw cash")
+                    template = registered_users["w2"]
+                    session_cache = json.loads(cache.get(session_id,"{}"))
+                    amount = Decimal(response.strip())
+                    session_cache["withdraw_amount"] = amount
+                    cache.set(session_id, json.dumps(session_cache))
+
+                    log.stage = "w3"
+                    log.save(update_fields="stage")
+                    data = package(body, template["body"], status=template["status"])
+                    return JsonResponse(data)
+
+
+                if stage == "w3":
+                   logger.warning("confirm transaction")
+                   template = registered_users["w3"]
+
+                   if response == "1":
+                      session_cache = json.loads(cache.get(session_id, "{}"))
+                      amount = Decimal(session_cache.get("amount", ""))
+                      user = Profile.objects.get(phone_number=phone_number)
+                      total_amount = trans.add_charges(amount)
+
+                      if user and user.balance >= total_amount:
+                         template.format(
+                         amount
+                        )
+                        
+                        log.stage = "dp"
+                        log.save(update_fields=["stage"])
+
+                      else:
+                        log.stage = "w3"
+                        log.save(update_fields="stage")
+                        template = "Insuffficient funds!"
+
+                        data = package(body, template, status='2')
+                        return JsonResponse(data)
+
+                    else:
+                        log.stage = "r1"
+                        log.save(update_fields=["stage"])
+
+
+                if stage == "dp":
+                    pass
+
+
+                          
+
+
+
+
+
+
+                
+
+
 
 
 

@@ -86,7 +86,7 @@ registered_users = {
         "back": "r1",
     },
     "d3": {
-        "body": "Confirm deposit: for amount {} GHS\n1. Yes\n2. No",
+        "body": "Confirm deposit: for amount {} GHS\n1. Yes\n2. Cancel",
         "status": 1,
         "part": 2,
         "next": "r1",
@@ -100,7 +100,7 @@ registered_users = {
         "back": "r1",
     },
     "w3": {
-        "body": "Confirm withdrawal:\n1. Yes\n2. No",
+        "body": "Confirm withdrawal for {} GHS \n1. Enter Code\n2. No",
         "status": 1,
         "part": 2,
         "next": "r1",
@@ -112,6 +112,13 @@ registered_users = {
         "status": 1,
     },
     "xp":{
+        "body":"Enter your pin to confirm transaction",
+        "status":2,
+        "error1":"Incorrect Pin",
+        "error2": "It seems you've submitted an invalid pin code. You have {} more tries",
+        "error3": "you have exceeded the number of pin entries try again later",
+    },
+    "dp":{
         "body":"Enter your pin to confirm transaction",
         "status":2,
         "error1":"Incorrect Pin",
